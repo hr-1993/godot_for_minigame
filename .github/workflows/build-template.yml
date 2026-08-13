@@ -143,18 +143,19 @@ jobs:
           js_candidates=(godot-src/bin/godot.web.template_release.wasm32*.js)
           wasm_candidates=(godot-src/bin/godot.web.template_release.wasm32*.wasm)
           shopt -u nullglob
-          if [ "${#js_candidates[@]}" -ne 1 ] || [ "${#wasm_candidates[@]}" -ne 1 ]; then
-            echo "Expected exactly one JavaScript artifact and one WASM artifact" >&2
-            printf 'JavaScript candidates (%s): %s\n' "${#js_candidates[@]}" "${js_candidates[*]:-<none>}" >&2
+          # Godot 4.7+ 额外产出 .engine.js / .wrapped.js 辅助文件，导致 JS glob 多匹配。
+          # 改为以唯一的 WASM 为锚，反推同 stem 的引擎本体 JS，不再依赖 JS 数量唯一。
+          if [ "${#wasm_candidates[@]}" -ne 1 ]; then
+            echo "Expected exactly one WASM artifact" >&2
             printf 'WASM candidates (%s): %s\n' "${#wasm_candidates[@]}" "${wasm_candidates[*]:-<none>}" >&2
             exit 1
           fi
-          js_file="${js_candidates[0]}"
           wasm_file="${wasm_candidates[0]}"
-          test -s "$js_file"
           test -s "$wasm_file"
-          if [ "${js_file%.js}" != "${wasm_file%.wasm}" ]; then
-            echo "JavaScript and WASM artifact stems do not match" >&2
+          js_file="${wasm_file%.wasm}.js"
+          if [ ! -s "$js_file" ]; then
+            echo "Engine JS not found at WASM stem: $js_file" >&2
+            printf 'Available JS candidates: %s\n' "${js_candidates[*]:-<none>}" >&2
             exit 1
           fi
           echo "js=$js_file" >> "$GITHUB_OUTPUT"
